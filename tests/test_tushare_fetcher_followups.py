@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Regression tests for post-merge Tushare follow-up fixes."""
 
+import importlib.util
 import sys
 import unittest
 from datetime import datetime
@@ -8,9 +9,16 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-if "litellm" not in sys.modules:
-    sys.modules["litellm"] = MagicMock()
-if "json_repair" not in sys.modules:
+from tests.litellm_stub import ensure_litellm_stub
+
+ensure_litellm_stub()
+
+try:
+    json_repair_available = importlib.util.find_spec("json_repair") is not None
+except ValueError:
+    json_repair_available = "json_repair" in sys.modules
+
+if not json_repair_available and "json_repair" not in sys.modules:
     sys.modules["json_repair"] = MagicMock()
 
 from data_provider.tushare_fetcher import TushareFetcher
