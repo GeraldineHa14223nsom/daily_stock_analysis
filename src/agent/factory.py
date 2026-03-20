@@ -141,10 +141,13 @@ def build_agent_executor(config=None, skills: Optional[List[str]] = None):
     skill_manager = get_skill_manager(config)
 
     configured_skills = getattr(config, "agent_skills", None) or None
-    explicit_skill_selection = skills is not None or configured_skills is not None
+    explicit_skill_selection = bool(skills) or configured_skills is not None
     default_skills = get_default_active_skill_ids(skill_manager.list_skills())
-    skills_to_activate = skills if skills is not None else (configured_skills or default_skills)
-    skill_manager.activate(skills_to_activate if skills_to_activate else ["all"])
+    if skills is not None:
+        skills_to_activate = skills or default_skills
+    else:
+        skills_to_activate = configured_skills or default_skills
+    skill_manager.activate(skills_to_activate)
     logger.info("[AgentFactory] Activated skills: %s (arch=%s)", skills_to_activate, arch)
 
     llm_adapter = LLMToolAdapter(config)

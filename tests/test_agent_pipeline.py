@@ -193,6 +193,26 @@ class TestAgentFactorySkillBaseline(unittest.TestCase):
         self.assertIn("严进策略", kwargs["default_skill_policy"])
         skill_manager.activate.assert_called_once_with(["bull_trend"])
 
+    def test_explicit_empty_request_falls_back_to_primary_default_skill(self):
+        config = SimpleNamespace(
+            agent_arch="single",
+            agent_skills=[],
+            agent_max_steps=10,
+            agent_orchestrator_timeout_s=600,
+        )
+        kwargs, skill_manager = self._run_factory_case(
+            config,
+            request_skills=[],
+            skill_catalog=[
+                self._make_skill("bull_trend", default_active=True, default_priority=10),
+                self._make_skill("chan_theory", default_priority=20),
+            ],
+            instructions="bull_trend instructions",
+        )
+
+        self.assertIn("严进策略", kwargs["default_skill_policy"])
+        skill_manager.activate.assert_called_once_with(["bull_trend"])
+
 
 # ============================================================
 # AgentResult to AnalysisResult conversion
