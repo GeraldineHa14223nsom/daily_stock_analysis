@@ -12,6 +12,7 @@ A股自选股智能分析系统 - 核心分析流水线
 """
 
 import logging
+import threading
 import time
 import uuid
 from collections import defaultdict
@@ -88,6 +89,7 @@ class StockAnalysisPipeline:
         self.trend_analyzer = StockTrendAnalyzer()  # 技术分析器
         self.analyzer = GeminiAnalyzer(config=self.config)
         self.notifier = NotificationService(source_message=source_message)
+        self._single_stock_notify_lock = threading.Lock()
         
         # 初始化搜索服务
         self.search_service = SearchService(
@@ -1309,24 +1311,29 @@ class StockAnalysisPipeline:
             return
 
         stock_code = getattr(result, "code", None) or fallback_code or "unknown"
+        notify_lock = self.__dict__.setdefault(
+            "_single_stock_notify_lock",
+            threading.Lock(),
+        )
 
-        try:
-            if report_type == ReportType.FULL:
-                report_content = self.notifier.generate_dashboard_report([result])
-                logger.info(f"[{stock_code}] 使用完整报告格式")
-            elif report_type == ReportType.BRIEF:
-                report_content = self.notifier.generate_brief_report([result])
-                logger.info(f"[{stock_code}] 使用简洁报告格式")
-            else:
-                report_content = self.notifier.generate_single_stock_report(result)
-                logger.info(f"[{stock_code}] 使用精简报告格式")
+        with notify_lock:
+            try:
+                if report_type == ReportType.FULL:
+                    report_content = self.notifier.generate_dashboard_report([result])
+                    logger.info(f"[{stock_code}] 使用完整报告格式")
+                elif report_type == ReportType.BRIEF:
+                    report_content = self.notifier.generate_brief_report([result])
+                    logger.info(f"[{stock_code}] 使用简洁报告格式")
+                else:
+                    report_content = self.notifier.generate_single_stock_report(result)
+                    logger.info(f"[{stock_code}] 使用精简报告格式")
 
-            if self.notifier.send(report_content, email_stock_codes=[stock_code]):
-                logger.info(f"[{stock_code}] 单股推送成功")
-            else:
-                logger.warning(f"[{stock_code}] 单股推送失败")
-        except Exception as e:
-            logger.error(f"[{stock_code}] 单股推送异常: {e}")
+                if self.notifier.send(report_content, email_stock_codes=[stock_code]):
+                    logger.info(f"[{stock_code}] 单股推送成功")
+                else:
+                    logger.warning(f"[{stock_code}] 单股推送失败")
+            except Exception as e:
+                logger.error(f"[{stock_code}] 单股推送异常: {e}")
 
     def _save_local_report(
         self,
