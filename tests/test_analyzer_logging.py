@@ -222,6 +222,20 @@ def test_sanitize_llm_log_preview_redacts_single_quoted_credential_fields():
 @pytest.mark.parametrize(
     ("raw_preview", "expected_preview"),
     [
+        ("Authorization: Bearer raw-secret-token", "Authorization=Bearer [REDACTED]"),
+        ("Authorization: Basic dXNlcjpwYXNz", "Authorization=Basic [REDACTED]"),
+    ],
+)
+def test_sanitize_llm_log_preview_redacts_authorization_headers(raw_preview, expected_preview):
+    preview = _sanitize_llm_log_preview(raw_preview)
+
+    assert preview == expected_preview
+    assert raw_preview.split()[-1] not in preview
+
+
+@pytest.mark.parametrize(
+    ("raw_preview", "expected_preview"),
+    [
         ("password='abc,def'", "password='[REDACTED]'"),
         ('password="abc;def"', 'password="[REDACTED]"'),
         ("password='abc def'", "password='[REDACTED]'"),
