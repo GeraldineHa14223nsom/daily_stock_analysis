@@ -21,7 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] 🪟 **Windows Release 渠道编辑器保留 MiniMax 模型前缀** — 渠道模式下填写 `minimax/<模型名>` 时，后端归一化与 Web 设置页运行时模型列表都会保留该值原样，不再误改写成 `openai/minimax/<模型名>`，从而恢复 MiniMax 模型在 Win 客户端里的保存、选择与使用。
 ### 修复
 
-- 🗓️ **断点续传与 `--dry-run` 改按市场时区和交易日历判断可复用数据**（fixes #880）— 股票数据存在性检查不再直接使用服务器自然日，而是按 A 股 / 港股 / 美股各自市场时区解析“最新可复用交易日”；周末、节假日、跨时区以及盘中 / 盘后场景会统一复用最近已完成交易日，避免误判导致重复抓取或错误跳过。
+- 🗓️ **断点续传与 `--dry-run` 改按市场时区和交易日历判断可复用数据**（fixes #880）— 股票数据存在性检查不再直接使用服务器自然日，而是按 A 股 / 港股 / 美股各自市场时区解析“最新可复用交易日”；周末、节假日、跨时区以及盘中 / 盘后场景会统一复用最近已完成交易日，避免误判导致重复抓取或错误跳过。  
+  - 变更文件：`src/core/pipeline.py`、`src/core/trading_calendar.py`、`tests/test_pipeline_fetch_error.py`、`tests/test_pipeline_prefetch_dry_run.py`、`tests/test_trading_calendar.py`，以及用户文档 `README.md`、`docs/full-guide.md`、`docs/CHANGELOG.md`。
+  - 覆盖验证：`python -m py_compile src/core/pipeline.py tests/test_pipeline_fetch_error.py tests/test_pipeline_prefetch_dry_run.py tests/test_trading_calendar.py`；`python -m pytest tests/test_pipeline_fetch_error.py tests/test_pipeline_prefetch_dry_run.py tests/test_trading_calendar.py`。
 
 ## [3.11.0] - 2026-03-27
 
