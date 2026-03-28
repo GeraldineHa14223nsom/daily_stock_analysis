@@ -147,6 +147,96 @@ class TestSerpAPISearchProvider(unittest.TestCase):
         self.assertIn("votes: 1200", resp.results[0].snippet)
         mock_fetch.assert_not_called()
 
+    def test_provider_preserves_falsy_detected_extensions_without_fetching(self) -> None:
+        provider = SerpAPISearchProvider(["dummy_key"])
+
+        with self._patch_serpapi(
+            {
+                "organic_results": [
+                    {
+                        "title": "Zero-like extensions result",
+                        "link": "https://example.com/zero-like-extensions",
+                        "source": "Example",
+                        "rich_snippet": {
+                            "top": {
+                                "detected_extensions": {
+                                    "price": 0,
+                                    "market_open": False,
+                                }
+                            },
+                            "bottom": {
+                                "detected_extensions": {
+                                    "votes": 0,
+                                }
+                            },
+                        },
+                    }
+                ]
+            }
+        ), patch("src.search_service.fetch_url_content") as mock_fetch:
+            resp = provider.search("阿里巴巴 财报", max_results=3)
+
+        self.assertTrue(resp.success)
+        self.assertEqual(len(resp.results), 1)
+        self.assertIn("price: 0", resp.results[0].snippet)
+        self.assertIn("market open: False", resp.results[0].snippet)
+        self.assertIn("votes: 0", resp.results[0].snippet)
+        mock_fetch.assert_not_called()
+
+    def test_provider_ignores_malformed_rich_snippet_sections(self) -> None:
+        provider = SerpAPISearchProvider(["dummy_key"])
+        long_enough_snippet = "已有摘要，足够避免补抓。 " * 16
+
+        with self._patch_serpapi(
+            {
+                "organic_results": [
+                    {
+                        "title": "Malformed rich snippet",
+                        "link": "https://example.com/malformed-rich-snippet",
+                        "snippet": long_enough_snippet,
+                        "source": "Example",
+                        "rich_snippet": {
+                            "top": "unexpected string payload",
+                            "bottom": ["unexpected", "list"],
+                        },
+                    }
+                ]
+            }
+        ), patch("src.search_service.fetch_url_content") as mock_fetch:
+            resp = provider.search("阿里巴巴 财报", max_results=3)
+
+        self.assertTrue(resp.success)
+        self.assertEqual(len(resp.results), 1)
+        self.assertEqual(resp.results[0].snippet, long_enough_snippet.strip())
+        mock_fetch.assert_not_called()
+
+    def test_extract_rich_snippet_extensions_handles_non_dict_payloads(self) -> None:
+        self.assertEqual(
+            SerpAPISearchProvider._extract_rich_snippet_extensions(
+                {"rich_snippet": "unexpected string payload"}
+            ),
+            [],
+        )
+        self.assertEqual(
+            SerpAPISearchProvider._extract_rich_snippet_extensions(
+                {
+                    "rich_snippet": {
+                        "top": "unexpected string payload",
+                        "bottom": ["unexpected", "list"],
+                    }
+                }
+            ),
+            [],
+        )
+
+    def test_merge_organic_snippet_uses_normalized_length_for_ellipsis(self) -> None:
+        merged = SerpAPISearchProvider._merge_organic_snippet_with_content(
+            "原始摘要",
+            "A" + ("\n" * (SerpAPISearchProvider._ORGANIC_FETCHED_PREVIEW_LENGTH + 20)),
+        )
+
+        self.assertFalse(merged.endswith("..."))
+
     def test_provider_fetches_only_one_top_short_snippet_candidate(self) -> None:
         provider = SerpAPISearchProvider(["dummy_key"])
 

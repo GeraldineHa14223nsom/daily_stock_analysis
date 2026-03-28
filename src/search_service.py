@@ -644,17 +644,24 @@ class SerpAPISearchProvider(BaseSearchProvider):
     @classmethod
     def _normalize_organic_text(cls, value: Any) -> str:
         """标准化 SerpAPI organic 文本字段。"""
-        return re.sub(r"\s+", " ", str(value or "")).strip()
+        text = "" if value is None else str(value)
+        return re.sub(r"\s+", " ", text).strip()
 
     @classmethod
     def _extract_rich_snippet_extensions(cls, item: Dict[str, Any]) -> List[str]:
         """提取 rich_snippet 中已有的结构化摘要，优先复用 API 原始返回。"""
-        rich_snippet = item.get("rich_snippet") or {}
+        rich_snippet = item.get("rich_snippet")
+        if not isinstance(rich_snippet, dict):
+            return []
+
         extensions: List[str] = []
         seen: set[str] = set()
 
         for section in ("top", "bottom"):
-            section_data = rich_snippet.get(section) or {}
+            section_data = rich_snippet.get(section)
+            if not isinstance(section_data, dict):
+                continue
+
             for raw_value in section_data.get("extensions") or []:
                 value = cls._normalize_organic_text(raw_value)
                 if not value or value in seen:
@@ -765,11 +772,12 @@ class SerpAPISearchProvider(BaseSearchProvider):
     @classmethod
     def _merge_organic_snippet_with_content(cls, snippet: str, content: str) -> str:
         """用较短正文预览补强 snippet，避免拉长单次搜索耗时和返回体积。"""
-        preview = cls._normalize_organic_text(content)[:cls._ORGANIC_FETCHED_PREVIEW_LENGTH]
-        if not preview:
+        normalized = cls._normalize_organic_text(content)
+        if not normalized:
             return snippet
 
-        if len(content) > cls._ORGANIC_FETCHED_PREVIEW_LENGTH:
+        preview = normalized[:cls._ORGANIC_FETCHED_PREVIEW_LENGTH]
+        if len(normalized) > cls._ORGANIC_FETCHED_PREVIEW_LENGTH:
             preview = f"{preview}..."
 
         if snippet:
