@@ -946,13 +946,23 @@ class StockAnalysisPipeline:
     @staticmethod
     def _is_placeholder_stock_name(name: str, code: str) -> bool:
         """Return True when the stock name is missing or placeholder-like."""
+        def _canonicalize_code_like_value(value: str) -> str:
+            normalized_value = normalize_stock_code(str(value or "").strip()).upper()
+            if normalized_value.startswith("HK"):
+                digits = normalized_value[2:]
+                if digits.isdigit() and 1 <= len(digits) <= 5:
+                    return f"HK{digits.zfill(5)}"
+            if normalized_value.isdigit() and 1 <= len(normalized_value) <= 5:
+                return f"HK{normalized_value.zfill(5)}"
+            return normalized_value
+
         if not name:
             return True
         normalized = str(name).strip()
         if not normalized:
             return True
-        normalized_name_code = normalize_stock_code(normalized)
-        normalized_input_code = normalize_stock_code(str(code or "").strip())
+        normalized_name_code = _canonicalize_code_like_value(normalized)
+        normalized_input_code = _canonicalize_code_like_value(code)
         if normalized == code:
             return True
         if normalized_name_code and normalized_input_code and normalized_name_code == normalized_input_code:
