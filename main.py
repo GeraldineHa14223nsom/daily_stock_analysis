@@ -84,6 +84,43 @@ def _setup_bootstrap_logging(debug: bool = False) -> None:
     )
 
 
+def _get_stock_analysis_pipeline():
+    """Lazily import StockAnalysisPipeline for external consumers."""
+    from src.core.pipeline import StockAnalysisPipeline as _Pipeline
+
+    return _Pipeline
+
+
+# Re-export for consumers that do ``from main import StockAnalysisPipeline``
+# (e.g. src/services/task_service.py, bot/commands/batch.py).
+# We use a module-level lazy helper so the heavy import only happens on first access.
+class _LazyPipelineDescriptor:
+    """Descriptor that resolves StockAnalysisPipeline on first attribute access."""
+
+    _resolved = None
+
+    def __set_name__(self, owner, name):
+        self._name = name
+
+    def __get__(self, obj, objtype=None):
+        if self._resolved is None:
+            self._resolved = _get_stock_analysis_pipeline()
+        return self._resolved
+
+
+class _ModuleExports:
+    StockAnalysisPipeline = _LazyPipelineDescriptor()
+
+
+_exports = _ModuleExports()
+
+
+def __getattr__(name: str):
+    if name == "StockAnalysisPipeline":
+        return _exports.StockAnalysisPipeline
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 def _prepare_webui_frontend_assets() -> bool:
     """Lazily load WebUI asset preparation to avoid top-level heavy imports."""
     from src.webui_frontend import prepare_webui_frontend_assets
@@ -658,7 +695,17 @@ def main() -> int:
     args = parse_arguments()
 
     # 在配置加载前先初始化 bootstrap 日志，确保早期失败也能落盘
-    _setup_bootstrap_logging(debug=args.debug)
+    try:
+        _setup_bootstrap_logging(debug=args.debug)
+    except Exception as exc:
+        # 如果 bootstrap 日志初始化失败，回退到最小化的 stderr 日志，避免程序直接崩溃
+        logging.basicConfig(
+            level=logging.DEBUG if getattr(args, "debug", False) else logging.INFO,
+            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            stream=sys.stderr,
+        )
+        logger.exception("初始化 bootstrap 日志失败: %s", exc)
+        return 1
 
     try:
         _bootstrap_environment()

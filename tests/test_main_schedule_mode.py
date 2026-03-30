@@ -33,10 +33,21 @@ class MainScheduleModeTestCase(unittest.TestCase):
         self.env_patch = patch.dict(os.environ, {"ENV_FILE": str(self.env_path)}, clear=False)
         self.env_patch.start()
         Config.reset_instance()
+        root_logger = logging.getLogger()
+        self._original_root_handlers = list(root_logger.handlers)
+        self._original_root_level = root_logger.level
 
     def tearDown(self) -> None:
-        logging.shutdown()
-        logging.getLogger().handlers.clear()
+        root_logger = logging.getLogger()
+        current_handlers = list(root_logger.handlers)
+        for handler in current_handlers:
+            if handler not in self._original_root_handlers:
+                root_logger.removeHandler(handler)
+                try:
+                    handler.close()
+                except Exception:
+                    pass
+        root_logger.setLevel(self._original_root_level)
         os.chdir(self.original_cwd)
         Config.reset_instance()
         self.env_patch.stop()
@@ -330,18 +341,16 @@ class MainScheduleModeTestCase(unittest.TestCase):
 
     def test_bootstrap_logging_persists_when_config_load_fails(self) -> None:
         args = self._make_args()
-        log_file = (
-            Path(self.temp_dir.name)
-            / "logs"
-            / f"stock_analysis_{datetime.now().strftime('%Y%m%d')}.log"
-        )
+        logs_dir = Path(self.temp_dir.name) / "logs"
 
         with patch("main.parse_arguments", return_value=args), \
              patch("main.get_config", side_effect=RuntimeError("config boom")):
             exit_code = main.main()
 
         self.assertEqual(exit_code, 1)
-        self.assertTrue(log_file.exists())
+        log_files = sorted(logs_dir.glob("stock_analysis_*.log"))
+        self.assertGreaterEqual(len(log_files), 1)
+        log_file = log_files[0]
         log_content = log_file.read_text(encoding="utf-8")
         self.assertIn("加载配置失败", log_content)
         self.assertIn("config boom", log_content)
