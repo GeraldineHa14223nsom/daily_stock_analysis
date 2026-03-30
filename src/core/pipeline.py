@@ -1304,15 +1304,23 @@ class StockAnalysisPipeline:
             
             # 收集结果
             while future_to_code:
-                future = next(as_completed(future_to_code))
-                code = future_to_code.pop(future)
-                try:
-                    result = future.result()
-                    if result:
-                        results.append(result)
+                # 等待至少一个 future 完成
+                done_iter = as_completed(future_to_code)
+                first_done = next(done_iter)
+                # 收集所有已完成的 future，避免空闲 worker 在 sleep 期间被占位
+                batch = [first_done]
+                for f in list(future_to_code):
+                    if f is not first_done and f.done():
+                        batch.append(f)
 
-                except Exception as e:
-                    logger.error(f"[{code}] 任务执行失败: {e}")
+                for future in batch:
+                    code = future_to_code.pop(future)
+                    try:
+                        result = future.result()
+                        if result:
+                            results.append(result)
+                    except Exception as e:
+                        logger.error(f"[{code}] 任务执行失败: {e}")
 
                 submitted_after_completion = False
                 while len(future_to_code) < self.max_workers and next_code_index < total_codes:
@@ -1326,10 +1334,6 @@ class StockAnalysisPipeline:
 
                 # Issue #128: 分析间隔 - 在个股分析和大盘分析之间添加延迟
                 if submitted_after_completion and analysis_delay > 0:
-                    # 注意：此 sleep 发生在“主线程收集 future 的循环”中，
-                    # 并不会阻止线程池中的任务同时发起网络请求。
-                    # 因此它对降低并发请求峰值的效果有限；真正的峰值主要由 max_workers 决定。
-                    # 该行为目前保留（按需求不改逻辑）。
                     logger.debug(f"等待 {analysis_delay} 秒后继续下一只股票...")
                     time.sleep(analysis_delay)
         

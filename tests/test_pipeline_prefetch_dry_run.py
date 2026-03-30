@@ -92,6 +92,9 @@ class TestPipelinePrefetchBehavior(unittest.TestCase):
             def result(self):
                 return self._result
 
+            def done(self):
+                return True
+
         class _FakeExecutor:
             instances = []
 
