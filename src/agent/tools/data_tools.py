@@ -552,7 +552,11 @@ def _handle_get_capital_flow(stock_code: str) -> dict:
         ctx = manager.get_capital_flow_context(stock_code)
     except Exception as exc:
         logger.warning("get_capital_flow failed for %s: %s", stock_code, exc)
-        return {"error": f"capital flow fetch failed: {exc}", "stock_code": stock_code}
+        return {
+            "stock_code": stock_code,
+            "status": "error",
+            "error": f"capital flow fetch failed: {exc}",
+        }
 
     status = ctx.get("status", "not_supported")
     if status == "not_supported":
@@ -601,12 +605,4 @@ get_capital_flow_tool = ToolDefinition(
 )
 
 
-ALL_DATA_TOOLS = [
-    get_realtime_quote_tool,
-    get_daily_history_tool,
-    get_chip_distribution_tool,
-    get_analysis_context_tool,
-    get_stock_info_tool,
-    get_portfolio_snapshot_tool,
-    get_capital_flow_tool,
-]
+ALL_DATA_TOOLS.append(get_capital_flow_tool)

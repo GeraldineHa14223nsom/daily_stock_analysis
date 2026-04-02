@@ -2860,6 +2860,16 @@ class SearchService:
                     'strict_freshness': not is_index_etf,
                 },
                 {
+                    'name': 'announcements',
+                    'query': (
+                        f"{stock_name} {stock_code} 公告 指数调整 成分变化"
+                        if is_index_etf else f"{stock_name} {stock_code} 公司公告 重要公告 上交所 深交所 cninfo"
+                    ),
+                    'desc': '公司公告',
+                    'tavily_topic': 'news',
+                    'strict_freshness': True,
+                },
+                {
                     'name': 'earnings',
                     'query': (
                         f"{stock_name} 指数成分 净值 跟踪表现"
@@ -2878,16 +2888,6 @@ class SearchService:
                     'desc': '行业分析',
                     'tavily_topic': None,
                     'strict_freshness': False,
-                },
-                {
-                    'name': 'announcements',
-                    'query': (
-                        f"{stock_name} {stock_code} 公告 指数调整 成分变化"
-                        if is_index_etf else f"{stock_name} {stock_code} 公司公告 重要公告 上交所 深交所 cninfo"
-                    ),
-                    'desc': '公司公告',
-                    'tavily_topic': 'news',
-                    'strict_freshness': True,
                 },
             ]
         
