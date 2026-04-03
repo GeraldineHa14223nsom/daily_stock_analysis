@@ -2082,20 +2082,69 @@ class SearchService:
         return cls._contains_chinese_text(" ".join(filter(None, [item.title, item.snippet, item.source])))
 
     @classmethod
+    def _matches_stock_news_context(
+        cls,
+        item: SearchResult,
+        *,
+        stock_code: str,
+        stock_name: str,
+    ) -> bool:
+        """Check whether a news item explicitly mentions the target stock."""
+        text = " ".join(filter(None, [item.title, item.snippet, item.source, item.url]))
+        if not text:
+            return False
+
+        lower_text = text.lower()
+        normalized_name = (stock_name or "").strip().lower()
+        if normalized_name and normalized_name in lower_text:
+            return True
+
+        raw_code = (stock_code or "").strip()
+        if not raw_code:
+            return False
+
+        code_variants = {raw_code.lower()}
+        base_code = raw_code.split(".", 1)[0].lower()
+        if base_code:
+            code_variants.add(base_code)
+            if base_code.isdigit() and len(base_code) == 6:
+                code_variants.update({f"sh{base_code}", f"sz{base_code}"})
+
+        for variant in code_variants:
+            if re.search(rf"(?<![a-z0-9]){re.escape(variant)}(?![a-z0-9])", lower_text):
+                return True
+
+        return False
+
+    @classmethod
     def _prioritize_news_language(
         cls,
         response: SearchResponse,
         *,
         prefer_chinese: bool,
-    ) -> Tuple[SearchResponse, int]:
-        """Reorder results by preferred language and return preferred-result count."""
+        stock_code: str,
+        stock_name: str,
+    ) -> Tuple[SearchResponse, int, int]:
+        """Reorder results by stock-context match and preferred language."""
         if not prefer_chinese or not response.success or not response.results:
-            return response, 0
+            return response, 0, 0
 
+        matched_chinese_results: List[SearchResult] = []
+        matched_other_results: List[SearchResult] = []
         chinese_results: List[SearchResult] = []
         other_results: List[SearchResult] = []
         for item in response.results:
-            if cls._is_chinese_news_result(item):
+            matches_context = cls._matches_stock_news_context(
+                item,
+                stock_code=stock_code,
+                stock_name=stock_name,
+            )
+            is_chinese = cls._is_chinese_news_result(item)
+            if matches_context and is_chinese:
+                matched_chinese_results.append(item)
+            elif matches_context:
+                matched_other_results.append(item)
+            elif is_chinese:
                 chinese_results.append(item)
             else:
                 other_results.append(item)
@@ -2103,13 +2152,19 @@ class SearchService:
         return (
             SearchResponse(
                 query=response.query,
-                results=chinese_results + other_results,
+                results=(
+                    matched_chinese_results
+                    + matched_other_results
+                    + chinese_results
+                    + other_results
+                ),
                 provider=response.provider,
                 success=response.success,
                 error_message=response.error_message,
                 search_time=response.search_time,
             ),
-            len(chinese_results),
+            len(matched_chinese_results),
+            len(matched_chinese_results) + len(matched_other_results),
         )
 
     @classmethod
@@ -2118,14 +2173,18 @@ class SearchService:
         candidate: SearchResponse,
         *,
         candidate_preferred_count: int,
+        candidate_context_match_count: int,
         best_response: Optional[SearchResponse],
         best_preferred_count: int,
+        best_context_match_count: int,
     ) -> bool:
-        """Prefer responses with more Chinese items, then more total items."""
+        """Prefer responses with more matched Chinese items, then more matched items."""
         if best_response is None:
             return True
         if candidate_preferred_count != best_preferred_count:
             return candidate_preferred_count > best_preferred_count
+        if candidate_context_match_count != best_context_match_count:
+            return candidate_context_match_count > best_context_match_count
         return len(candidate.results) > len(best_response.results)
 
     @classmethod
@@ -2600,8 +2659,9 @@ class SearchService:
             # 依次尝试各个搜索引擎（若过滤后为空，继续尝试下一引擎）
             had_provider_success = False
             fallback_response: Optional[SearchResponse] = None
-            best_preferred_response: Optional[SearchResponse] = None
+            best_contextual_response: Optional[SearchResponse] = None
             best_preferred_count = 0
+            best_context_match_count = 0
             for provider in self._providers:
                 if not provider.is_available:
                     continue
@@ -2627,15 +2687,35 @@ class SearchService:
                 had_provider_success = had_provider_success or bool(response.success)
 
                 if filtered_response.success and filtered_response.results:
-                    prioritized_response, preferred_count = self._prioritize_news_language(
+                    prioritized_response, _, _ = self._prioritize_news_language(
                         filtered_response,
                         prefer_chinese=prefer_chinese,
+                        stock_code=stock_code,
+                        stock_name=stock_name,
                     )
                     limited_response = self._limit_search_response(
                         prioritized_response,
                         max_results=max_results,
                     )
-                    visible_preferred_count = min(preferred_count, len(limited_response.results))
+                    visible_preferred_count = sum(
+                        1
+                        for item in limited_response.results
+                        if self._is_chinese_news_result(item)
+                        and self._matches_stock_news_context(
+                            item,
+                            stock_code=stock_code,
+                            stock_name=stock_name,
+                        )
+                    )
+                    visible_context_match_count = sum(
+                        1
+                        for item in limited_response.results
+                        if self._matches_stock_news_context(
+                            item,
+                            stock_code=stock_code,
+                            stock_name=stock_name,
+                        )
+                    )
 
                     if not prefer_chinese:
                         logger.info(f"使用 {provider.name} 搜索成功")
@@ -2645,28 +2725,40 @@ class SearchService:
                     if fallback_response is None:
                         fallback_response = limited_response
 
+                    if visible_context_match_count == 0:
+                        logger.info(
+                            "%s 搜索成功但结果未命中 %s(%s) 上下文，继续尝试下一引擎",
+                            provider.name,
+                            stock_name,
+                            stock_code,
+                        )
+                        continue
+
+                    if self._is_better_preferred_news_response(
+                        limited_response,
+                        candidate_preferred_count=visible_preferred_count,
+                        candidate_context_match_count=visible_context_match_count,
+                        best_response=best_contextual_response,
+                        best_preferred_count=best_preferred_count,
+                        best_context_match_count=best_context_match_count,
+                    ):
+                        best_contextual_response = limited_response
+                        best_preferred_count = visible_preferred_count
+                        best_context_match_count = visible_context_match_count
+
                     if visible_preferred_count > 0:
                         logger.info(
-                            "%s 搜索成功，识别到 %s/%s 条中文新闻",
+                            "%s 搜索成功，识别到 %s/%s 条命中当前股票上下文的中文新闻",
                             provider.name,
                             visible_preferred_count,
                             len(limited_response.results),
                         )
-                        if self._is_better_preferred_news_response(
-                            limited_response,
-                            candidate_preferred_count=visible_preferred_count,
-                            best_response=best_preferred_response,
-                            best_preferred_count=best_preferred_count,
-                        ):
-                            best_preferred_response = limited_response
-                            best_preferred_count = visible_preferred_count
-
                         if visible_preferred_count >= max_results:
                             self._put_cache(cache_key, limited_response)
                             return limited_response
                     else:
                         logger.info(
-                            "%s 搜索成功但结果仍以英文为主，继续尝试下一引擎",
+                            "%s 搜索成功且命中股票上下文，但结果仍以英文为主，继续尝试下一引擎",
                             provider.name,
                         )
                 else:
@@ -2683,7 +2775,7 @@ class SearchService:
                         )
 
             if prefer_chinese:
-                best_to_return = best_preferred_response or fallback_response
+                best_to_return = best_contextual_response or fallback_response
                 if best_to_return is not None:
                     self._put_cache(cache_key, best_to_return)
                     return best_to_return
