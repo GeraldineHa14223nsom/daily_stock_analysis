@@ -48,3 +48,5 @@ isort==5.13.2
 
 # Personal additions
 ipython==8.18.1  # useful for interactive exploration in the REPL
+jupyter==1.0.0  # for notebook-based exploration and charting
+rich==13.7.0    # nicer terminal output when running scripts manually
