@@ -50,3 +50,4 @@ isort==5.13.2
 ipython==8.18.1  # useful for interactive exploration in the REPL
 jupyter==1.0.0  # for notebook-based exploration and charting
 rich==13.7.0    # nicer terminal output when running scripts manually
+openpyxl==3.1.2  # export analysis results to Excel for easy sharing
