@@ -59,3 +59,4 @@ mplfinance==0.12.10b0  # candlestick charts — much easier than raw matplotlib
 # Extra personal tools
 nbconvert==7.11.0  # convert notebooks to HTML for easy sharing/archiving
 watchdog==3.0.0   # auto-reload scripts when files change during development
+scipy==1.11.4     # needed by quantStats for statistical calculations; adding explicitly to avoid version surprises
