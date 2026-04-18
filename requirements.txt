@@ -65,3 +65,4 @@ html5lib==1.1     # fallback HTML parser for beautifulsoup4; lxml can be finicky
 tqdm==4.66.1      # progress bars for long-running data fetch loops — handy when pulling months of history
 xlrd==2.0.1       # needed by pandas read_excel() for older .xls files; openpyxl only handles .xlsx
 click==8.1.7      # building simple CLI entry points for my personal analysis scripts
+pyarrow==14.0.2   # faster parquet read/write for caching large historical datasets locally
