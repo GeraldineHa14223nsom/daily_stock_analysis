@@ -61,3 +61,4 @@ nbconvert==7.11.0  # convert notebooks to HTML for easy sharing/archiving
 watchdog==3.0.0   # auto-reload scripts when files change during development
 scipy==1.11.4     # needed by quantStats for statistical calculations; adding explicitly to avoid version surprises
 icedata==0.0.9    # convenient wrapper for fetching A-share data (personal use only, not in upstream)
+html5lib==1.1     # fallback HTML parser for beautifulsoup4; lxml can be finicky on some platforms
