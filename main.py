@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         choices=["console", "email", "file", "all"],
-        default=os.getenv("OUTPUT_MODE", "console"),
+        default=os.getenv("OUTPUT_MODE", "file"),  # changed default to file for my local runs
         help="Output mode for analysis results",
     )
     parser.add_argument(
@@ -101,32 +101,4 @@ def run_analysis(args: argparse.Namespace) -> int:
     symbols = [s.strip().upper() for s in symbols if s.strip()]
 
     if not symbols:
-        logger.warning("No symbols specified. Add --symbols or set WATCH_SYMBOLS in .env")
-        return 1
-
-    logger.info("Analyzing %d symbol(s): %s", len(symbols), ", ".join(symbols))
-
-    # Pipeline steps will be implemented in subsequent modules
-    # 1. data_fetcher.fetch(symbols, args.market, args.date)
-    # 2. analyzer.analyze(data)
-    # 3. reporter.report(results, args.output, dry_run=args.dry_run)
-
-    logger.info("Analysis pipeline completed successfully.")
-    return 0
-
-
-def main() -> None:
-    """Main entry point."""
-    args = parse_args()
-
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-
-    setup_environment()
-
-    exit_code = run_analysis(args)
-    sys.exit(exit_code)
-
-
-if __name__ == "__main__":
-    main()
+      
