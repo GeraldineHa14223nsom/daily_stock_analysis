@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         choices=["console", "email", "file", "all"],
-        default=os.getenv("OUTPUT_MODE", "file"),  # changed default to file for my local runs
+        default=os.getenv("OUTPUT_MODE", "console"),  # changed to console so I can see results immediately
         help="Output mode for analysis results",
     )
     parser.add_argument(
@@ -98,6 +98,4 @@ def run_analysis(args: argparse.Namespace) -> int:
     logger.info("Market: %s | Output: %s | Dry-run: %s", args.market, args.output, args.dry_run)
 
     # Default watchlist for my personal portfolio tracking
-    default_symbols = os.getenv("WATCH_SYMBOLS", "AAPL,NVDA,MSFT,TSM")
-    symbols = args.symbols or default_symbols.split(",")
-    symbols = [s.strip().upper() for s in symbols
+    default_symbols = os.getenv("WATCH_SYMBOLS", "AAPL,NVDA,MS
