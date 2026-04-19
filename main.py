@@ -97,8 +97,7 @@ def run_analysis(args: argparse.Namespace) -> int:
     logger.info("Starting daily stock analysis for date: %s", args.date)
     logger.info("Market: %s | Output: %s | Dry-run: %s", args.market, args.output, args.dry_run)
 
-    symbols = args.symbols or os.getenv("WATCH_SYMBOLS", "").split(",")
-    symbols = [s.strip().upper() for s in symbols if s.strip()]
-
-    if not symbols:
-      
+    # Default watchlist for my personal portfolio tracking
+    default_symbols = os.getenv("WATCH_SYMBOLS", "AAPL,NVDA,MSFT,TSM")
+    symbols = args.symbols or default_symbols.split(",")
+    symbols = [s.strip().upper() for s in symbols
